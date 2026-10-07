@@ -5,6 +5,8 @@ Main entry point for Fishing Game FPS.
 """
 
 from ursina import *
+from panda3d.core import NodePath
+import gltf
 import math
 import random
 import os
@@ -110,13 +112,36 @@ door_interactable = Interactable(
     on_interact=toggle_door
 )
 
+# Допоміжна функція для завантаження повноцінних 3D GLB/glTF моделей
+def load_gltf_entity(model_path, **kwargs):
+    entity = Entity(**kwargs)
+    try:
+        if os.path.exists(model_path):
+            model_root = gltf.load_model(model_path)
+            np = NodePath(model_root)
+            np.reparentTo(entity)
+        else:
+            # Резервна геометрія, якщо файл відсутній
+            Entity(parent=entity, model='cube', scale=(0.6, 1.8, 0.6), color=color.azure)
+    except Exception as e:
+        print(f"[WARN] Не вдалося завантажити 3D модель {model_path}: {e}")
+        Entity(parent=entity, model='cube', scale=(0.6, 1.8, 0.6), color=color.azure)
+    return entity
+
 # 4. NPC: Дід Василь (Рибалка біля будинку)
+npc_3d = load_gltf_entity(
+    'assets/fisherman_npc.glb',
+    position=(-3.0, 0.0, 1.5),
+    scale=0.7,
+    rotation_y=135
+)
 npc = Interactable(
     prompt_text="Поговорити",
     model='cube',
-    scale=(0.6, 1.8, 0.6),
-    position=(-3.0, 0.9, 1.5),
-    color=color.azure,
+    scale=(0.8, 2.0, 0.8),
+    position=(-3.0, 1.0, 1.5),
+    visible=False,
+    collider='box',
     on_interact=lambda p: open_dialogue(
         "Дід Василь",
         "Здоровенькі були! Озеро тут багате на карасів, окунів та щук.\n"
@@ -124,14 +149,34 @@ npc = Interactable(
     )
 )
 
-# 5. Магазин рибалки
-shop_booth = Entity(model='cube', scale=(2.5, 2.5, 2.5), position=(7.0, 1.25, -2.0), color=color.rgb(70, 50, 30), collider='box')
-shop_counter = Interactable(
-    prompt_text="Магазин",
+# 5. Магазин рибалки та 3D Моделька Продавця вудок
+shop_booth = Entity(model='cube', scale=(3.2, 2.6, 2.8), position=(7.0, 1.3, -2.0), color=color.rgb(75, 50, 30), collider='box')
+shop_counter = Entity(model='cube', scale=(2.2, 1.1, 0.6), position=(7.0, 0.55, -3.2), color=color.rgb(130, 90, 50), collider='box')
+
+# 3D Моделька продавця вудок (стоячи за прилавком магазину)
+shopkeeper_3d = load_gltf_entity(
+    'assets/shopkeeper.glb',
+    position=(7.0, 0.0, -2.1),
+    scale=0.72,
+    rotation_y=0
+)
+
+# Вудка як вітринний товар біля продавця
+shop_display_rod = Entity(
+    model='cylinder',
+    scale=(0.04, 2.2, 0.04),
+    position=(7.7, 1.1, -3.1),
+    rotation=(15, 0, -15),
+    color=color.rgb(200, 160, 40)
+)
+
+shop_interaction = Interactable(
+    prompt_text="Магазин вудок та наживки",
     model='cube',
-    scale=(1.5, 1.1, 0.6),
-    position=(7.0, 0.6, -3.4),
-    color=color.gold,
+    scale=(2.4, 2.0, 1.2),
+    position=(7.0, 1.0, -3.0),
+    visible=False,
+    collider='box',
     on_interact=lambda p: open_shop_ui()
 )
 
