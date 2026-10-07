@@ -1,6 +1,7 @@
 """
 Main entry point for Fishing Game FPS.
-Повна гра: FPS-рух, колізії, риболовля, NPC, магазин, інвентар, квести, збереження/завантаження, пауза/меню.
+Повна гра: FPS-рух, надійна фізика заземлення та спавну, захист від провалювання крізь карту,
+риболовля, NPC, магазин, інвентар, квести, збереження/завантаження, пауза/меню.
 """
 
 from ursina import *
@@ -17,11 +18,15 @@ app = Ursina(
     development_mode=False
 )
 window.size = (1280, 720)
-window.color = color.rgb(135, 206, 235) # колір неба
+window.color = color.rgb(135, 206, 235)  # колір неба
 
 # Спільний стан гри
 state = GameState()
 state.load_from_file()
+
+# Безпечна резервна позиція за замовчуванням (всередині будинку на підлозі)
+DEFAULT_SPAWN_INSIDE_HOUSE = Vec3(0, 0.45, 6.5)
+
 
 class Interactable(Entity):
     def __init__(self, prompt_text="Взаємодія", on_interact=None, **kwargs):
@@ -36,7 +41,126 @@ class Interactable(Entity):
             self.on_interact(player)
 
 
+# --- ПОБУДОВА СВІТУ (Створюється ДО появи гравця) ---
+Sky()
+
+# 1. Тверда земля (товстий куб, крізь який фізично неможливо провалитися)
+ground = Entity(
+    model='cube',
+    scale=(120, 4.0, 120),
+    position=(0, -2.0, 0),
+    texture='grass',
+    collider='box'
+)
+
+sun = DirectionalLight(y=15, rotation=(45, -45, 0))
+
+# 2. Будинок рибалки (стіни, підлога, дах, відкритий прохід для дверей)
+# Підлога будинку (товста платформа, щоб гравець надійно стояв усередині)
+house_floor = Entity(
+    model='cube',
+    scale=(8.0, 0.4, 6.0),
+    position=(0, 0.2, 7.0),
+    color=color.rgb(120, 85, 55),
+    collider='box'
+)
+
+# Задня та бічні стіни
+house_wall_back = Entity(model='cube', scale=(8.0, 3.5, 0.5), position=(0, 1.95, 10.0), color=color.dark_gray, collider='box')
+house_wall_left = Entity(model='cube', scale=(0.5, 3.5, 6.0), position=(-4.0, 1.95, 7.0), color=color.dark_gray, collider='box')
+house_wall_right = Entity(model='cube', scale=(0.5, 3.5, 6.0), position=(4.0, 1.95, 7.0), color=color.dark_gray, collider='box')
+
+# Передня стіна з реальним проходом для дверей (лівий сегмент, правий сегмент і перемичка над дверима)
+# Прохід шириною 1.6 по центру (від x=-0.8 до x=0.8)
+house_wall_front_left = Entity(model='cube', scale=(3.2, 3.5, 0.5), position=(-2.4, 1.95, 4.0), color=color.dark_gray, collider='box')
+house_wall_front_right = Entity(model='cube', scale=(3.2, 3.5, 0.5), position=(2.4, 1.95, 4.0), color=color.dark_gray, collider='box')
+house_wall_front_top = Entity(model='cube', scale=(1.6, 1.1, 0.5), position=(0, 3.15, 4.0), color=color.dark_gray, collider='box')
+
+# Дах будинку
+house_roof = Entity(model='cube', scale=(8.6, 0.5, 6.6), position=(0, 3.9, 7.0), color=color.brown, collider='box')
+
+# 3. Інтерактивні двері (повертаються/відчиняються або сповіщають)
+door_opened = False
+door_pivot = Entity(position=(-0.7, 0.4, 4.0))
+door_panel = Entity(
+    parent=door_pivot,
+    model='cube',
+    scale=(1.4, 2.3, 0.1),
+    position=(0.7, 1.15, 0),
+    color=color.orange,
+    collider='box'
+)
+
+def toggle_door(p):
+    global door_opened
+    door_opened = not door_opened
+    target_rot = -90 if door_opened else 0
+    door_pivot.animate_rotation_y(target_rot, duration=0.4)
+    status_msg = "Двері відчинено!" if door_opened else "Двері зачинено!"
+    p.show_notification(status_msg, duration=1.5, col=color.azure)
+
+door_interactable = Interactable(
+    prompt_text="Відкрити/Зачинити двері",
+    parent=door_pivot,
+    model='cube',
+    scale=(1.4, 2.3, 0.3),
+    position=(0.7, 1.15, 0),
+    visible=False,
+    collider='box',
+    on_interact=toggle_door
+)
+
+# 4. NPC: Дід Василь (Рибалка біля будинку)
+npc = Interactable(
+    prompt_text="Поговорити",
+    model='cube',
+    scale=(0.6, 1.8, 0.6),
+    position=(-3.0, 0.9, 1.5),
+    color=color.azure,
+    on_interact=lambda p: open_dialogue(
+        "Дід Василь",
+        "Здоровенькі були! Озеро тут багате на карасів, окунів та щук.\n"
+        "Візьми наживку в магазині ліворуч від озера та вирушай на риболовний місток!"
+    )
+)
+
+# 5. Магазин рибалки
+shop_booth = Entity(model='cube', scale=(2.5, 2.5, 2.5), position=(7.0, 1.25, -2.0), color=color.rgb(70, 50, 30), collider='box')
+shop_counter = Interactable(
+    prompt_text="Магазин",
+    model='cube',
+    scale=(1.5, 1.1, 0.6),
+    position=(7.0, 0.6, -3.4),
+    color=color.gold,
+    on_interact=lambda p: open_shop_ui()
+)
+
+# 6. Дерева та каміння
+for tree_pos in [(-9, 0, 8), (-13, 0, -2), (11, 0, 7), (8, 0, 13), (-7, 0, -8), (-4, 0, 14)]:
+    Entity(model='cylinder', scale=(0.6, 3.5, 0.6), position=Vec3(*tree_pos) + Vec3(0, 1.75, 0), color=color.brown, collider='box')
+    Entity(model='sphere', scale=3.0, position=Vec3(*tree_pos) + Vec3(0, 4.5, 0), color=color.green, collider='box')
+
+for rock_pos in [(-5, 0.4, 3), (4, 0.5, 1.5), (-8, 0.6, -4)]:
+    Entity(model='cube', scale=(1.2, 0.8, 1.2), position=rock_pos, color=color.gray, collider='box')
+
+# 7. Водойма, пірс та точка риболовлі
+water = Entity(model='plane', scale=32, position=(0, 0.05, -18), color=color.rgba(30, 144, 255, 200), collider='box')
+pier = Entity(model='cube', scale=(2.6, 0.3, 9.0), position=(0, 0.15, -11.5), color=color.brown, collider='box')
+
+fishing_spot = Interactable(
+    prompt_text="Рибалити",
+    model='cylinder',
+    scale=(1.5, 0.08, 1.5),
+    position=(0, 0.31, -15.0),
+    color=color.lime,
+    on_interact=lambda p: p.start_fishing(target_water_pos=Vec3(0, 0.1, -20.0))
+)
+
+
 class FPSPlayer(Entity):
+    """
+    Надійний FPS-контролер з повною системою заземлення, колізій та захисту від провалювання.
+    """
     def __init__(self, **kwargs):
         super().__init__()
 
@@ -48,11 +172,11 @@ class FPSPlayer(Entity):
         self.acceleration = 14.0
         self.friction = 11.0
 
-        # Стрибок і гравітація
+        # Фізика стрибка та гравітація
         self.jump_height = 1.25
         self.gravity = 25.0
         self.vertical_velocity = 0.0
-        self.grounded = False
+        self.grounded = True
 
         # Висота очей
         self.standing_height = 1.8
@@ -69,8 +193,11 @@ class FPSPlayer(Entity):
         # Camera Bobbing
         self.bob_timer = 0.0
 
-        # Позиція і колізія
-        self.position = Vec3(0, 2, -5)
+        # Безпечна точка повернення
+        self.last_safe_position = Vec3(DEFAULT_SPAWN_INSIDE_HOUSE)
+        self.position = Vec3(DEFAULT_SPAWN_INSIDE_HOUSE)
+
+        # Колідер гравця
         self.collider = BoxCollider(self, center=Vec3(0, 0.9, 0), size=Vec3(0.6, 1.8, 0.6))
 
         # Камера
@@ -100,7 +227,7 @@ class FPSPlayer(Entity):
         )
         self.prompt_text.enabled = False
 
-        # HUD: Статус гравця зверху зліва (Рівень, Гроші, Вудка)
+        # HUD: Інформаційна панель гравця
         self.hud_text = Text(
             text='',
             parent=camera.ui,
@@ -111,7 +238,7 @@ class FPSPlayer(Entity):
         )
         self.update_hud()
 
-        # Повідомлення по центру екрана
+        # Повідомлення на екрані
         self.notify_text = Text(
             text='',
             parent=camera.ui,
@@ -133,9 +260,8 @@ class FPSPlayer(Entity):
         self.bobber = None
         self.fishing_line = None
         self.has_bite = False
-        self.current_catch = None
 
-        # Стан UI вікон
+        # UI стан
         self.active_ui = None
         self.lock_mouse()
 
@@ -164,23 +290,57 @@ class FPSPlayer(Entity):
             f"Черв'яки: {state.inventory.get('Черв\'яки', 0)}  |  Блешня: {state.inventory.get('Блешня', 0)}"
         )
 
+    def safe_spawn_at(self, target_coord):
+        """
+        Перевіряє поверхню під цільовою координатою за допомогою Raycast вниз.
+        Якщо знайдено поверхню — ставимо гравця точно на неї (підлога/земля).
+        Якщо ні — ставимо в резервний дефолтний спавн всередині будинку.
+        """
+        # Стріляємо променем з висоти очей або трохи вище (не вище даху)
+        probe_start_y = min(target_coord.y + 1.5, 3.2)
+        start_probe = Vec3(target_coord.x, probe_start_y, target_coord.z)
+        hit = raycast(start_probe, Vec3(0, -1, 0), distance=8.0, ignore=(self, house_roof))
+
+        if hit.hit and hit.world_point is not None:
+            surface_y = hit.world_point.y
+            self.position = Vec3(target_coord.x, surface_y + 0.05, target_coord.z)
+        else:
+            self.position = Vec3(DEFAULT_SPAWN_INSIDE_HOUSE)
+
+        self.vertical_velocity = 0.0
+        self.grounded = True
+        self.last_safe_position = Vec3(self.position)
+
     def update(self):
         if self.active_ui:
             return
 
-        dt = time.dt
+        # Обмежуємо дельта-час, щоб стрибки кадрів (лаг) не спричиняли тунелювання крізь колізії
+        dt = min(time.dt, 0.05)
 
         # Огляд мишкою
         if not self.fishing_camera_locked:
             self.handle_camera_look(dt)
 
-        # Пересування чи режим риболовлі
+        # Рух чи риболовля
         if not self.is_fishing:
             self.handle_movement(dt)
             self.handle_bobbing(dt)
             self.check_interaction()
+            self.check_safety_bounds()
         else:
             self.update_fishing(dt)
+
+    def check_safety_bounds(self):
+        """
+        Анти-провалювання: якщо гравець опустився нижче допустимої висоти (y < -1.5),
+        миттєво повертаємо його на останню безпечну позицію з нульовою швидкістю.
+        """
+        if self.y < -1.5:
+            self.position = Vec3(self.last_safe_position)
+            self.vertical_velocity = 0.0
+            self.grounded = True
+            self.show_notification("Повернено до безпечної точки!", duration=2.0, col=color.orange)
 
     def handle_camera_look(self, dt):
         self.camera_yaw += mouse.velocity[0] * self.mouse_sensitivity.x
@@ -215,10 +375,10 @@ class FPSPlayer(Entity):
         target_vel = (self.forward * move_dir.z + self.right * move_dir.x) * (target_speed if is_moving else 0)
         self.velocity = lerp(self.velocity, target_vel, dt * (self.acceleration if is_moving else self.friction))
 
-        # Горизонтальні колізії (Raycast)
+        # Горизонтальні колізії (Raycast з перевіркою на рівні грудей)
         horiz_step = self.velocity * dt
         if horiz_step.length() > 0.0001:
-            ray_origin = self.position + Vec3(0, 0.6, 0)
+            ray_origin = self.position + Vec3(0, 0.7, 0)
             hit = raycast(ray_origin, horiz_step.normalized(), distance=0.6, ignore=(self,))
             if not hit.hit:
                 self.position += horiz_step
@@ -226,20 +386,43 @@ class FPSPlayer(Entity):
                 slide = horiz_step - hit.normal * horiz_step.dot(hit.normal)
                 self.position += slide
 
-        # Гравітація та стрибок (Space)
-        ground_ray = raycast(self.position + Vec3(0, 0.2, 0), Vec3(0, -1, 0), distance=0.45, ignore=(self,))
-        self.grounded = ground_ray.hit
+        # --- НАДІЙНЕ ЗАЗЕМЛЕННЯ ТА ГРАВІТАЦІЯ ---
+        # Промінь пускаємо з висоти +0.6 від ніг гравця вниз
+        ground_ray = raycast(self.position + Vec3(0, 0.6, 0), Vec3(0, -1, 0), distance=1.2, ignore=(self,))
 
-        if self.grounded:
-            self.vertical_velocity = 0
-            if ground_ray.world_point:
-                self.y = ground_ray.world_point.y
-            if held_keys['space'] and not self.is_crouching:
-                self.vertical_velocity = math.sqrt(2 * self.gravity * self.jump_height)
+        # Стрибок (Space)
+        if held_keys['space'] and self.grounded and not self.is_crouching:
+            self.vertical_velocity = math.sqrt(2 * self.gravity * self.jump_height)
+            self.grounded = False
+            self.y += self.vertical_velocity * dt
         else:
-            self.vertical_velocity -= self.gravity * dt
+            if ground_ray.hit and ground_ray.world_point is not None:
+                surface_y = ground_ray.world_point.y
+                # Якщо ноги близько до поверхні або трохи нижче/вище
+                dist_to_surface = self.y - surface_y
 
-        self.y += self.vertical_velocity * dt
+                if self.vertical_velocity <= 0 and dist_to_surface <= 0.25:
+                    # Гравець надійно стоїть на поверхні
+                    self.y = surface_y
+                    self.vertical_velocity = 0.0
+                    self.grounded = True
+                    # Фіксуємо останню перевірену безпечну координату
+                    if self.y >= -0.5:
+                        self.last_safe_position = Vec3(self.position)
+                else:
+                    # Гравець у повітрі (падає до землі)
+                    self.grounded = False
+                    self.vertical_velocity -= self.gravity * dt
+                    self.y += self.vertical_velocity * dt
+                    if self.y < surface_y:
+                        self.y = surface_y
+                        self.vertical_velocity = 0.0
+                        self.grounded = True
+            else:
+                # Поверхні під ногами взагалі немає (падіння)
+                self.grounded = False
+                self.vertical_velocity -= self.gravity * dt
+                self.y += self.vertical_velocity * dt
 
     def handle_bobbing(self, dt):
         horiz_speed = Vec2(self.velocity.x, self.velocity.z).length()
@@ -293,12 +476,10 @@ class FPSPlayer(Entity):
 
     # --- РИБОЛОВЛЯ ---
     def start_fishing(self, target_water_pos):
-        # Перевірка наявності наживки
         if state.inventory.get("Черв'яки", 0) <= 0 and state.inventory.get("Блешня", 0) <= 0:
             self.show_notification("Немає наживки! Купіть у магазині.", duration=3, col=color.red)
             return
 
-        # Використовуємо 1 наживку
         if state.inventory.get("Черв'яки", 0) > 0:
             state.inventory["Черв'яки"] -= 1
         elif state.inventory.get("Блешня", 0) > 0:
@@ -321,7 +502,6 @@ class FPSPlayer(Entity):
         )
         self.update_fishing_line()
 
-        # Таймер клювання (2.5 - 4.5 сек)
         delay = random.uniform(2.5, 4.5)
         invoke(self.on_bite, delay=delay)
 
@@ -359,7 +539,6 @@ class FPSPlayer(Entity):
             self.finish_fishing_session()
             return
 
-        # Визначаємо вилов
         rod_info = state.shop_rods.get(state.current_rod, {"luck_mult": 1.0})
         luck = rod_info.get("luck_mult", 1.0)
 
@@ -376,7 +555,6 @@ class FPSPlayer(Entity):
         state.on_fish_caught(caught)
         self.update_hud()
 
-        # Анімація риби перед камерою
         fish_model = Entity(
             parent=camera,
             model='cube',
@@ -427,19 +605,32 @@ def open_pause_menu():
     player.active_ui = "PAUSE"
     player.unlock_mouse()
 
-    active_menu = Entity(parent=camera.ui, model='quad', scale=(0.55, 0.65), color=color.rgba(20, 20, 28, 235))
-    Text("ГОЛОВНЕ МЕНЮ", parent=active_menu, y=0.38, origin=(0, 0), scale=1.6, color=color.azure)
+    active_menu = Entity(parent=camera.ui, model='quad', scale=(0.55, 0.72), color=color.rgba(20, 20, 28, 235))
+    Text("ГОЛОВНЕ МЕНЮ", parent=active_menu, y=0.40, origin=(0, 0), scale=1.6, color=color.azure)
 
     def on_resume():
         close_ui()
 
+    def on_new_game():
+        # Скидання даних гри та надійний респавн всередині будинку
+        global state
+        if os.path.exists(SAVE_FILE):
+            os.remove(SAVE_FILE)
+        state = GameState()
+        player.safe_spawn_at(DEFAULT_SPAWN_INSIDE_HOUSE)
+        player.update_hud()
+        player.show_notification("Розпочато Нову Гру!", col=color.lime)
+        close_ui()
+
     def on_save():
-        ok, msg = state.save_to_file()
+        ok, msg = state.save_to_file(player_pos=(player.x, player.y, player.z))
         player.show_notification(msg, col=color.lime if ok else color.red)
         close_ui()
 
     def on_load():
         ok, msg = state.load_from_file()
+        if ok and state.player_pos:
+            player.safe_spawn_at(Vec3(state.player_pos[0], state.player_pos[1], state.player_pos[2]))
         player.update_hud()
         player.show_notification(msg, col=color.lime if ok else color.red)
         close_ui()
@@ -447,10 +638,11 @@ def open_pause_menu():
     def on_quit():
         application.quit()
 
-    Button(text="Продовжити гру", parent=active_menu, y=0.18, scale=(0.7, 0.1), color=color.azure, on_click=on_resume)
-    Button(text="Зберегти гру", parent=active_menu, y=0.04, scale=(0.7, 0.1), color=color.teal, on_click=on_save)
-    Button(text="Завантажити збереження", parent=active_menu, y=-0.10, scale=(0.7, 0.1), color=color.olive, on_click=on_load)
-    Button(text="Вийти з гри", parent=active_menu, y=-0.24, scale=(0.7, 0.1), color=color.red, on_click=on_quit)
+    Button(text="Продовжити гру", parent=active_menu, y=0.22, scale=(0.7, 0.09), color=color.azure, on_click=on_resume)
+    Button(text="Нова гра (New Game)", parent=active_menu, y=0.10, scale=(0.7, 0.09), color=color.rgb(180, 100, 30), on_click=on_new_game)
+    Button(text="Зберегти гру", parent=active_menu, y=-0.02, scale=(0.7, 0.09), color=color.teal, on_click=on_save)
+    Button(text="Завантажити збереження", parent=active_menu, y=-0.14, scale=(0.7, 0.09), color=color.olive, on_click=on_load)
+    Button(text="Вийти з гри", parent=active_menu, y=-0.26, scale=(0.7, 0.09), color=color.red, on_click=on_quit)
 
 def open_inventory_ui():
     global active_menu
@@ -471,7 +663,6 @@ def open_inventory_ui():
     inv_lines.append(f"Наживка: Черв'яки: {state.inventory.get('Черв\'яки', 0)} | Блешня: {state.inventory.get('Блешня', 0)}")
 
     Text("\n".join(inv_lines), parent=active_menu, position=(-0.42, 0.28), scale=1.05, color=color.white)
-
     Button(text="Закрити (ESC / I)", parent=active_menu, y=-0.38, scale=(0.6, 0.1), color=color.azure, on_click=close_ui)
 
 def open_shop_ui():
@@ -482,7 +673,6 @@ def open_shop_ui():
     active_menu = Entity(parent=camera.ui, model='quad', scale=(0.75, 0.8), color=color.rgba(25, 25, 35, 245))
     Text("МАГАЗИН РИБАЛКИ", parent=active_menu, y=0.42, origin=(0, 0), scale=1.6, color=color.gold)
 
-    # Продаж усієї риби
     def do_sell():
         qty, money = state.sell_all_fish()
         player.update_hud()
@@ -494,7 +684,6 @@ def open_shop_ui():
 
     Button(text="ПРОДАТИ ВСЮ РИБУ", parent=active_menu, y=0.28, scale=(0.7, 0.09), color=color.green, on_click=do_sell)
 
-    # Купівля наживки
     def buy_worms():
         ok, msg = state.buy_bait("Черв'яки (x5)")
         player.update_hud()
@@ -508,7 +697,6 @@ def open_shop_ui():
     Button(text="Купити: Черв'яки (x5) - 20 грн", parent=active_menu, y=0.15, scale=(0.7, 0.08), color=color.azure, on_click=buy_worms)
     Button(text="Купити: Блешня (x2) - 50 грн", parent=active_menu, y=0.05, scale=(0.7, 0.08), color=color.azure, on_click=buy_lure)
 
-    # Купівля вудок
     def buy_rod_action(name):
         ok, msg = state.buy_rod(name)
         player.update_hud()
@@ -531,8 +719,8 @@ def open_quests_ui():
     y_pos = 0.25
     for q in state.quests:
         status_text = "ГОТОВО (Забрати нагороду)" if (q["completed"] and not q["claimed"]) else ("ВИКОНАНО" if q["claimed"] else f"Прогрес: {q['current']}/{q['count']}")
-        t = Text(f"• {q['title']}: {q['desc']}\n  Статус: {status_text} | Нагорода: {q['reward_money']} грн, {q['reward_xp']} XP",
-                 parent=active_menu, position=(-0.4, y_pos), scale=0.95, color=color.yellow if q["completed"] else color.white)
+        Text(f"• {q['title']}: {q['desc']}\n  Статус: {status_text} | Нагорода: {q['reward_money']} грн, {q['reward_xp']} XP",
+             parent=active_menu, position=(-0.4, y_pos), scale=0.95, color=color.yellow if q["completed"] else color.white)
         
         if q["completed"] and not q["claimed"]:
             qid = q["id"]
@@ -561,76 +749,17 @@ def open_dialogue(npc_name, text):
     Button(text="До побачення (ESC)", parent=active_menu, position=(0.18, -0.25), scale=(0.3, 0.1), color=color.dark_gray, on_click=close_ui)
 
 
-# --- СВІТ І ОБ'ЄКТИ ---
-Sky()
-ground = Entity(model='plane', scale=80, texture='grass', collider='box')
-sun = DirectionalLight(y=15, rotation=(45, -45, 0))
+# --- СТВОРЕННЯ ГРАВЦЯ (ПІСЛЯ побудови світу) ---
+player = FPSPlayer()
 
-# Будинок
-house_wall_back = Entity(model='cube', scale=(8, 3.5, 0.5), position=(0, 1.75, 10), color=color.dark_gray, collider='box')
-house_wall_left = Entity(model='cube', scale=(0.5, 3.5, 6), position=(-4, 1.75, 7), color=color.dark_gray, collider='box')
-house_wall_right = Entity(model='cube', scale=(0.5, 3.5, 6), position=(4, 1.75, 7), color=color.dark_gray, collider='box')
-house_roof = Entity(model='cube', scale=(8.5, 0.5, 6.5), position=(0, 3.7, 7), color=color.brown, collider='box')
+# Визначення точки початкового спавну:
+# Якщо є коректне збереження позиції — використовуємо його, інакше ставимо всередині будинку
+init_target = DEFAULT_SPAWN_INSIDE_HOUSE
+if state.player_pos is not None:
+    init_target = Vec3(state.player_pos[0], state.player_pos[1], state.player_pos[2])
 
-# Двері будинку
-door = Interactable(
-    prompt_text="Відкрити",
-    model='cube',
-    scale=(1.2, 2.4, 0.2),
-    position=(0, 1.2, 4),
-    color=color.orange,
-    on_interact=lambda p: p.show_notification("Двері зачинені на ключ від підвалу!", duration=2.5, col=color.yellow)
-)
-
-# NPC: Дід Василь (Рибалка)
-npc = Interactable(
-    prompt_text="Поговорити",
-    model='cube',
-    scale=(0.6, 1.8, 0.6),
-    position=(-3, 0.9, -1),
-    color=color.azure,
-    on_interact=lambda p: open_dialogue(
-        "Дід Василь",
-        "Здоровенькі були! Озеро тут багате на карасів та щук.\nВізьми черв'яків у магазині та спробуй виконати завдання!"
-    )
-)
-
-# Магазин
-shop_booth = Entity(model='cube', scale=(2.5, 2.5, 2.5), position=(6, 1.25, -2), color=color.rgb(70, 50, 30), collider='box')
-shop_counter = Interactable(
-    prompt_text="Магазин",
-    model='cube',
-    scale=(1.4, 1.1, 0.4),
-    position=(6, 0.6, -3.4),
-    color=color.gold,
-    on_interact=lambda p: open_shop_ui()
-)
-
-# Дерева та каміння (колізії)
-for tree_pos in [(-8, 0, 5), (-12, 0, -2), (10, 0, 6), (7, 0, 12), (-6, 0, -8)]:
-    Entity(model='cylinder', scale=(0.6, 3.5, 0.6), position=Vec3(*tree_pos) + Vec3(0, 1.75, 0), color=color.brown, collider='box')
-    Entity(model='sphere', scale=3.0, position=Vec3(*tree_pos) + Vec3(0, 4.5, 0), color=color.green, collider='box')
-
-for rock_pos in [(-4, 0.4, 2), (3, 0.5, 1), (-8, 0.6, -4)]:
-    Entity(model='cube', scale=(1.2, 0.8, 1.2), position=rock_pos, color=color.gray, collider='box')
-
-# Озеро та рибальський місток
-water = Entity(model='plane', scale=28, position=(0, 0.05, -18), color=color.rgba(30, 144, 255, 200), collider='box')
-pier = Entity(model='cube', scale=(2.5, 0.2, 8), position=(0, 0.15, -11), color=color.brown, collider='box')
-
-# Точка риболовлі
-fishing_spot = Interactable(
-    prompt_text="Рибалити",
-    model='cylinder',
-    scale=(1.5, 0.08, 1.5),
-    position=(0, 0.26, -14.5),
-    color=color.lime,
-    on_interact=lambda p: p.start_fishing(target_water_pos=Vec3(0, 0.1, -19))
-)
-
-# Гравець
-player = FPSPlayer(position=Vec3(0, 2, -5))
+player.safe_spawn_at(init_target)
 
 if __name__ == '__main__':
-    print("[SYSTEM] Fishing Game FPS повністю завантажено!")
+    print("[SYSTEM] Fishing Game FPS повністю завантажено! Спавн перевірено.")
     app.run()

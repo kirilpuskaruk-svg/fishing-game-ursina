@@ -19,7 +19,8 @@ class GameState:
         }
         self.current_rod = "Стара вудка"
         self.owned_rods = ["Стара вудка"]
-        
+        self.player_pos = None  # [x, y, z] безпечні координати
+
         # Завдання (Quests)
         self.quests = [
             {"id": "q1", "title": "Перший улов", "desc": "Зловити 2 Карасі", "target": "Карась", "count": 2, "current": 0, "reward_money": 40, "reward_xp": 50, "completed": False, "claimed": False},
@@ -62,7 +63,6 @@ class GameState:
         elif fish_name == "Сом": xp_gain = 150
         self.add_xp(xp_gain)
 
-        # Перевірка квестів
         for q in self.quests:
             if not q["completed"]:
                 if q["target"] == "ANY" or q["target"] == fish_name:
@@ -121,7 +121,9 @@ class GameState:
         self.inventory[item] = self.inventory.get(item, 0) + bait_info["qty"]
         return True, f"Куплено {bait_info['qty']} шт. {item}!"
 
-    def save_to_file(self, filepath=SAVE_FILE):
+    def save_to_file(self, player_pos=None, filepath=SAVE_FILE):
+        if player_pos is not None:
+            self.player_pos = [float(player_pos[0]), float(player_pos[1]), float(player_pos[2])]
         data = {
             "money": self.money,
             "xp": self.xp,
@@ -129,7 +131,8 @@ class GameState:
             "inventory": self.inventory,
             "current_rod": self.current_rod,
             "owned_rods": self.owned_rods,
-            "quests": self.quests
+            "quests": self.quests,
+            "player_pos": self.player_pos
         }
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
@@ -151,6 +154,15 @@ class GameState:
             self.current_rod = data.get("current_rod", self.current_rod)
             self.owned_rods = data.get("owned_rods", self.owned_rods)
             self.quests = data.get("quests", self.quests)
+            raw_pos = data.get("player_pos")
+            # Валідація координат: якщо y занадто низький, не використовуємо зіпсоване збереження
+            if raw_pos and isinstance(raw_pos, list) and len(raw_pos) == 3:
+                if raw_pos[1] > -1.0:
+                    self.player_pos = raw_pos
+                else:
+                    self.player_pos = None
+            else:
+                self.player_pos = None
             return True, "Гру завантажено!"
         except Exception as e:
             return False, f"Помилка завантаження: {e}"
