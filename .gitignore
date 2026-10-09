@@ -30,6 +30,10 @@ ENV/
 *.spec
 build/
 
+# Release binaries (large files, upload to GitHub Releases)
+release/*.exe
+*.log
+
 # Save states
 save_data.json
 
