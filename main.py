@@ -1,15 +1,34 @@
 """
-Main entry point for Fishing Game FPS.
+Main entry point for Fishing Game FPS (Low Fish).
 Повна гра: FPS-рух, надійна фізика заземлення та спавну, захист від провалювання крізь карту,
 риболовля, NPC, магазин, інвентар, квести, збереження/завантаження, пауза/меню.
 """
+
+import sys
+import os
+
+# --- Windowed mode: redirect stdout/stderr to log file ---
+def _setup_logging():
+    """Redirect output to logs/game.log when running as frozen EXE (no console)."""
+    if getattr(sys, 'frozen', False):
+        # Determine base dir: next to the EXE
+        base_dir = os.path.dirname(sys.executable)
+        log_dir = os.path.join(base_dir, 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'game.log')
+        try:
+            sys.stdout = open(log_path, 'w', encoding='utf-8', buffering=1)
+            sys.stderr = sys.stdout
+        except Exception:
+            pass
+
+_setup_logging()
 
 from ursina import *
 from panda3d.core import NodePath
 import gltf
 import math
 import random
-import os
 from game_state import GameState, SAVE_FILE
 
 # Ініціалізація Ursina
