@@ -20,9 +20,12 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\{#MyAppName}
+DefaultDirName={sd}\Low Fish
 DefaultGroupName={#MyAppName}
+DirExistsWarning=no
+AlwaysShowDirOnReadyPage=yes
 AllowNoIcons=yes
+UsePreviousAppDir=no
 PrivilegesRequired=lowest
 OutputDir={#MyReleaseDir}
 OutputBaseFilename=MyGame-Setup
@@ -35,7 +38,6 @@ UninstallDisplayName={#MyAppName}
 VersionInfoVersion={#MyAppVersion}
 VersionInfoDescription={#MyAppName} Installer
 VersionInfoCompany={#MyAppPublisher}
-UsePreviousAppDir=yes
 
 [Languages]
 Name: "ukrainian"; MessagesFile: "compiler:Languages\Ukrainian.isl"
