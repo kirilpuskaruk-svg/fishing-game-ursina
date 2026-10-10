@@ -39,7 +39,7 @@ app = Ursina(
     development_mode=False
 )
 window.size = (1280, 720)
-window.color = color.rgb(135, 206, 235)  # колір неба
+window.color = color.rgb32(135, 206, 235)  # колір неба
 
 # Спільний стан гри
 state = GameState()
@@ -82,7 +82,7 @@ house_floor = Entity(
     model='cube',
     scale=(8.0, 0.4, 6.0),
     position=(0, 0.2, 7.0),
-    color=color.rgb(120, 85, 55),
+    color=color.rgb32(120, 85, 55),
     collider='box'
 )
 
@@ -169,8 +169,8 @@ npc = Interactable(
 )
 
 # 5. Магазин рибалки та 3D Моделька Продавця вудок
-shop_booth = Entity(model='cube', scale=(3.2, 2.6, 2.8), position=(7.0, 1.3, -2.0), color=color.rgb(75, 50, 30), collider='box')
-shop_counter = Entity(model='cube', scale=(2.2, 1.1, 0.6), position=(7.0, 0.55, -3.2), color=color.rgb(130, 90, 50), collider='box')
+shop_booth = Entity(model='cube', scale=(3.2, 2.6, 2.8), position=(7.0, 1.3, -2.0), color=color.rgb32(75, 50, 30), collider='box')
+shop_counter = Entity(model='cube', scale=(2.2, 1.1, 0.6), position=(7.0, 0.55, -3.2), color=color.rgb32(130, 90, 50), collider='box')
 
 # 3D Моделька продавця вудок (стоячи за прилавком магазину)
 shopkeeper_3d = load_gltf_entity(
@@ -186,7 +186,7 @@ shop_display_rod = Entity(
     scale=(0.04, 2.2, 0.04),
     position=(7.7, 1.1, -3.1),
     rotation=(15, 0, -15),
-    color=color.rgb(200, 160, 40)
+    color=color.rgb32(200, 160, 40)
 )
 
 shop_interaction = Interactable(
@@ -208,7 +208,7 @@ for rock_pos in [(-5, 0.4, 3), (4, 0.5, 1.5), (-8, 0.6, -4)]:
     Entity(model='cube', scale=(1.2, 0.8, 1.2), position=rock_pos, color=color.gray, collider='box')
 
 # 7. Водойма, пірс та точка риболовлі
-water = Entity(model='plane', scale=32, position=(0, 0.05, -18), color=color.rgba(30, 144, 255, 200), collider='box')
+water = Entity(model='plane', scale=32, position=(0, 0.05, -18), color=color.rgba32(30, 144, 255, 200), collider='box')
 pier = Entity(model='cube', scale=(2.6, 0.3, 9.0), position=(0, 0.15, -11.5), color=color.brown, collider='box')
 
 fishing_spot = Interactable(
@@ -276,7 +276,7 @@ class FPSPlayer(Entity):
             model='quad',
             texture='circle',
             scale=0.008,
-            color=color.rgba(255, 255, 255, 220)
+            color=color.rgba32(255, 255, 255, 220)
         )
 
         # HUD: Підказка взаємодії (E)
@@ -540,14 +540,17 @@ class FPSPlayer(Entity):
 
     # --- РИБОЛОВЛЯ ---
     def start_fishing(self, target_water_pos):
-        if state.inventory.get("Черв'яки", 0) <= 0 and state.inventory.get("Блешня", 0) <= 0:
+        available_bait = None
+        for b_name in ["Спеціальна наживка", "Кукурудза", "Хробаки"]:
+            if state.inventory.get(b_name, 0) > 0:
+                available_bait = b_name
+                break
+
+        if not available_bait:
             self.show_notification("Немає наживки! Купіть у магазині.", duration=3, col=color.red)
             return
 
-        if state.inventory.get("Черв'яки", 0) > 0:
-            state.inventory["Черв'яки"] -= 1
-        elif state.inventory.get("Блешня", 0) > 0:
-            state.inventory["Блешня"] -= 1
+        state.inventory[available_bait] -= 1
         self.update_hud()
 
         self.is_fishing = True
@@ -577,7 +580,7 @@ class FPSPlayer(Entity):
             destroy(self.fishing_line)
         self.fishing_line = Entity(
             model=Pipe(path=[hand_pos, self.bobber.position], thicknesses=[0.008, 0.008]),
-            color=color.rgba(255, 255, 255, 140)
+            color=color.rgba32(255, 255, 255, 140)
         )
 
     def update_fishing(self, dt):
@@ -669,14 +672,15 @@ def open_pause_menu():
     player.active_ui = "PAUSE"
     player.unlock_mouse()
 
-    active_menu = Entity(parent=camera.ui, model='quad', scale=(0.55, 0.72), color=color.rgba(20, 20, 28, 235))
-    Text("ГОЛОВНЕ МЕНЮ", parent=active_menu, y=0.40, origin=(0, 0), scale=1.6, color=color.azure)
+    active_menu = Entity(parent=camera.ui, z=-10)
+    bg = Entity(parent=active_menu, model='quad', scale=(0.58, 0.72), color=color.rgba32(18, 22, 32, 245), z=0)
+    border = Entity(parent=active_menu, model='quad', scale=(0.584, 0.724), color=color.rgba32(60, 130, 240, 200), z=0.01)
+    Text("ГОЛОВНЕ МЕНЮ", parent=active_menu, y=0.30, origin=(0, 0), scale=1.6, color=color.azure, z=-0.02)
 
     def on_resume():
         close_ui()
 
     def on_new_game():
-        # Скидання даних гри та надійний респавн всередині будинку
         global state
         if os.path.exists(SAVE_FILE):
             os.remove(SAVE_FILE)
@@ -702,100 +706,246 @@ def open_pause_menu():
     def on_quit():
         application.quit()
 
-    Button(text="Продовжити гру", parent=active_menu, y=0.22, scale=(0.7, 0.09), color=color.azure, on_click=on_resume)
-    Button(text="Нова гра (New Game)", parent=active_menu, y=0.10, scale=(0.7, 0.09), color=color.rgb(180, 100, 30), on_click=on_new_game)
-    Button(text="Зберегти гру", parent=active_menu, y=-0.02, scale=(0.7, 0.09), color=color.teal, on_click=on_save)
-    Button(text="Завантажити збереження", parent=active_menu, y=-0.14, scale=(0.7, 0.09), color=color.olive, on_click=on_load)
-    Button(text="Вийти з гри", parent=active_menu, y=-0.26, scale=(0.7, 0.09), color=color.red, on_click=on_quit)
+    Button(text="Продовжити гру", parent=active_menu, y=0.18, scale=(0.46, 0.075), color=color.azure, on_click=on_resume, z=-0.02)
+    Button(text="Нова гра (New Game)", parent=active_menu, y=0.08, scale=(0.46, 0.075), color=color.rgb32(180, 100, 30), on_click=on_new_game, z=-0.02)
+    Button(text="Зберегти гру", parent=active_menu, y=-0.02, scale=(0.46, 0.075), color=color.teal, on_click=on_save, z=-0.02)
+    Button(text="Завантажити збереження", parent=active_menu, y=-0.12, scale=(0.46, 0.075), color=color.olive, on_click=on_load, z=-0.02)
+    Button(text="Вийти з гри", parent=active_menu, y=-0.22, scale=(0.46, 0.075), color=color.red, on_click=on_quit, z=-0.02)
 
 def open_inventory_ui():
     global active_menu
     player.active_ui = "INVENTORY"
     player.unlock_mouse()
 
-    active_menu = Entity(parent=camera.ui, model='quad', scale=(0.65, 0.7), color=color.rgba(20, 25, 35, 240))
-    Text("ІНВЕНТАР ГРАВЦЯ", parent=active_menu, y=0.4, origin=(0, 0), scale=1.5, color=color.gold)
+    active_menu = Entity(parent=camera.ui, z=-10)
+    bg = Entity(parent=active_menu, model='quad', scale=(0.72, 0.76), color=color.rgba32(18, 24, 36, 245), z=0)
+    border = Entity(parent=active_menu, model='quad', scale=(0.726, 0.766), color=color.rgba32(50, 120, 220, 200), z=0.01)
+
+    Text("ІНВЕНТАР ГРАВЦЯ", parent=active_menu, y=0.33, origin=(0, 0), scale=1.5, color=color.gold, z=-0.02)
+    Button(text="✕", parent=active_menu, position=(0.32, 0.33), scale=(0.045, 0.045), color=color.red, on_click=close_ui, z=-0.02)
 
     inv_lines = []
+    inv_lines.append(f"Баланс: {state.money} грн  |  Рівень: {state.level} ({state.xp} XP)")
     inv_lines.append(f"Вудка в руках: {state.current_rod}")
-    inv_lines.append(f"Усі вудки: {', '.join(state.owned_rods)}")
-    inv_lines.append("-----------------------------")
-    inv_lines.append("Виловлена риба:")
+    inv_lines.append(f"Всі ваші вудки: {', '.join(state.owned_rods)}")
+    inv_lines.append("──────────────────────────────────────────")
+    inv_lines.append("Виловлена риба у кошику:")
+    total_fish_count = 0
+    total_fish_val = 0
     for fish in ["Карась", "Окунь", "Щука", "Сом"]:
-        inv_lines.append(f"  • {fish}: {state.inventory.get(fish, 0)} шт. (Ціна продажу: {state.fish_prices[fish]} грн)")
-    inv_lines.append("-----------------------------")
-    inv_lines.append(f"Наживка: Черв'яки: {state.inventory.get('Черв\'яки', 0)} | Блешня: {state.inventory.get('Блешня', 0)}")
+        c = state.inventory.get(fish, 0)
+        p = state.fish_prices.get(fish, 0)
+        total_fish_count += c
+        total_fish_val += c * p
+        inv_lines.append(f"  • {fish}: {c} шт. (ціна: {p} грн/шт)")
+    inv_lines.append(f"  Всього риби: {total_fish_count} шт. на суму: {total_fish_val} грн")
+    inv_lines.append("──────────────────────────────────────────")
+    inv_lines.append(f"Наживка: Хробаки: {state.inventory.get('Хробаки', 0)} | Кукурудза: {state.inventory.get('Кукурудза', 0)} | Спец. наживка: {state.inventory.get('Спеціальна наживка', 0)}")
 
-    Text("\n".join(inv_lines), parent=active_menu, position=(-0.42, 0.28), scale=1.05, color=color.white)
-    Button(text="Закрити (ESC / I)", parent=active_menu, y=-0.38, scale=(0.6, 0.1), color=color.azure, on_click=close_ui)
+    Text("\n".join(inv_lines), parent=active_menu, position=(-0.32, 0.25), scale=0.92, color=color.white, z=-0.02)
+    Button(text="Закрити (ESC / I)", parent=active_menu, y=-0.31, scale=(0.4, 0.065), color=color.azure, on_click=close_ui, z=-0.02)
+
+current_shop_tab = "RODS"
 
 def open_shop_ui():
-    global active_menu
+    global active_menu, current_shop_tab
+    if active_menu:
+        close_ui()
+
     player.active_ui = "SHOP"
     player.unlock_mouse()
 
-    active_menu = Entity(parent=camera.ui, model='quad', scale=(0.75, 0.8), color=color.rgba(25, 25, 35, 245))
-    Text("МАГАЗИН РИБАЛКИ", parent=active_menu, y=0.42, origin=(0, 0), scale=1.6, color=color.gold)
+    active_menu = Entity(parent=camera.ui, z=-10)
 
-    def do_sell():
-        qty, money = state.sell_all_fish()
-        player.update_hud()
-        if qty > 0:
-            player.show_notification(f"Продано {qty} риб на суму {money} грн!", col=color.lime)
-        else:
-            player.show_notification("У вас немає риби для продажу!", col=color.yellow)
-        close_ui()
+    # Задній фон панелі магазину з тонкою рамкою
+    bg = Entity(parent=active_menu, model='quad', scale=(0.90, 0.86), color=color.rgba32(16, 22, 34, 250), z=0)
+    border = Entity(parent=active_menu, model='quad', scale=(0.906, 0.866), color=color.rgba32(45, 110, 200, 220), z=0.01)
 
-    Button(text="ПРОДАТИ ВСЮ РИБУ", parent=active_menu, y=0.28, scale=(0.7, 0.09), color=color.green, on_click=do_sell)
+    # Верхня панель (Заголовок, Баланс, Кнопка X)
+    header_bar = Entity(parent=active_menu, model='quad', position=(0, 0.37), scale=(0.88, 0.08), color=color.rgba32(24, 32, 50, 255), z=-0.01)
+    title_text = Text("🎣  МАГАЗИН РИБАЛКИ", parent=active_menu, position=(-0.41, 0.37), origin=(-0.5, 0), scale=1.35, color=color.gold, z=-0.02)
+    
+    balance_text = Text(f"Баланс: {state.money} грн  |  Рівень: {state.level}", parent=active_menu, position=(0.14, 0.37), origin=(0, 0), scale=1.05, color=color.lime, z=-0.02)
+    Button(text="✕", parent=active_menu, position=(0.41, 0.37), scale=(0.045, 0.045), color=color.red, on_click=close_ui, z=-0.02)
 
-    def buy_worms():
-        ok, msg = state.buy_bait("Черв'яки (x5)")
-        player.update_hud()
-        player.show_notification(msg, col=color.lime if ok else color.red)
+    # Контейнер для вмісту вкладки
+    content_area = Entity(parent=active_menu, z=-0.02)
 
-    def buy_lure():
-        ok, msg = state.buy_bait("Блешня (x2)")
-        player.update_hud()
-        player.show_notification(msg, col=color.lime if ok else color.red)
+    def set_tab(tab_name):
+        nonlocal tab_name_var
+        tab_name_var = tab_name
+        render_content()
 
-    Button(text="Купити: Черв'яки (x5) - 20 грн", parent=active_menu, y=0.15, scale=(0.7, 0.08), color=color.azure, on_click=buy_worms)
-    Button(text="Купити: Блешня (x2) - 50 грн", parent=active_menu, y=0.05, scale=(0.7, 0.08), color=color.azure, on_click=buy_lure)
+    tab_name_var = current_shop_tab
 
-    def buy_rod_action(name):
-        ok, msg = state.buy_rod(name)
-        player.update_hud()
-        player.show_notification(msg, col=color.lime if ok else color.red)
+    def render_content():
+        nonlocal tab_name_var
+        # Очистити старі елементи вмісту
+        for child in list(content_area.children):
+            destroy(child)
 
-    Button(text="Бамбукова вудка (Рівень 1) - 100 грн", parent=active_menu, y=-0.07, scale=(0.7, 0.08), color=color.teal, on_click=lambda: buy_rod_action("Бамбукова вудка"))
-    Button(text="Професійний спінінг (Рівень 2) - 250 грн", parent=active_menu, y=-0.17, scale=(0.7, 0.08), color=color.teal, on_click=lambda: buy_rod_action("Професійний спінінг"))
-    Button(text="Титан Pro (Рівень 3) - 500 грн", parent=active_menu, y=-0.27, scale=(0.7, 0.08), color=color.teal, on_click=lambda: buy_rod_action("Титан Pro"))
+        # Оновити колір кнопок вкладок
+        tab_rods_btn.color = color.azure if tab_name_var == "RODS" else color.rgba32(35, 45, 65, 255)
+        tab_baits_btn.color = color.azure if tab_name_var == "BAITS" else color.rgba32(35, 45, 65, 255)
+        tab_sell_btn.color = color.green if tab_name_var == "SELL" else color.rgba32(35, 45, 65, 255)
+        balance_text.text = f"Баланс: {state.money} грн  |  Рівень: {state.level}"
 
-    Button(text="Вийти з магазину (ESC)", parent=active_menu, y=-0.38, scale=(0.5, 0.08), color=color.dark_gray, on_click=close_ui)
+        if tab_name_var == "RODS":
+            render_rods_tab()
+        elif tab_name_var == "BAITS":
+            render_baits_tab()
+        elif tab_name_var == "SELL":
+            render_sell_tab()
+
+    def render_rods_tab():
+        y_start = 0.20
+        rods_list = [
+            ("Початкова вудка", state.shop_rods["Початкова вудка"]),
+            ("Покращена вудка", state.shop_rods["Покращена вудка"]),
+            ("Професійна вудка", state.shop_rods["Професійна вудка"]),
+            ("Рідкісна вудка для великої риби", state.shop_rods["Рідкісна вудка для великої риби"])
+        ]
+
+        for rod_name, info in rods_list:
+            card = Entity(parent=content_area, model='quad', position=(0, y_start), scale=(0.86, 0.11), color=color.rgba32(24, 32, 48, 255), z=0)
+            is_owned = rod_name in state.owned_rods
+            is_equipped = state.current_rod == rod_name
+
+            title_col = color.gold if is_equipped else (color.azure if is_owned else color.white)
+            status_badge = " [В РУКАХ]" if is_equipped else (" [КУПЛЕНО]" if is_owned else f" [Рівень {info['level_req']} мінімум]")
+            
+            Text(f"{rod_name}{status_badge}", parent=content_area, position=(-0.41, y_start + 0.028), scale=1.05, color=title_col, z=-0.01)
+            Text(f"{info['desc']}\nЦіна: {info['price']} грн  •  Множник удачі: x{info['luck_mult']}",
+                 parent=content_area, position=(-0.41, y_start - 0.005), scale=0.85, color=color.light_gray, z=-0.01)
+
+            def make_rod_click(r_name=rod_name, r_price=info['price'], req_lvl=info['level_req']):
+                def on_click():
+                    if r_name in state.owned_rods:
+                        state.current_rod = r_name
+                        state.save_to_file()
+                        player.update_hud()
+                        player.show_notification(f"Екіпіровано: {r_name}!", col=color.lime)
+                    else:
+                        if state.level < req_lvl:
+                            player.show_notification(f"Потрібен {req_lvl} рівень гравця!", col=color.red)
+                            return
+                        if state.money < r_price:
+                            player.show_notification(f"Недостатньо грошей! Ціна: {r_price} грн", col=color.red)
+                            return
+                        ok, msg = state.buy_rod(r_name)
+                        player.update_hud()
+                        player.show_notification(msg, col=color.lime if ok else color.red)
+                    render_content()
+                return on_click
+
+            btn_txt = "В руках" if is_equipped else ("Екіпірувати" if is_owned else f"Купити ({info['price']} ₴)")
+            btn_col = color.dark_gray if is_equipped else (color.teal if is_owned else (color.green if state.money >= info['price'] and state.level >= info['level_req'] else color.rgba32(110, 40, 40, 255)))
+            
+            Button(text=btn_txt, parent=content_area, position=(0.33, y_start), scale=(0.17, 0.075), color=btn_col, on_click=make_rod_click(), z=-0.01)
+            y_start -= 0.125
+
+    def render_baits_tab():
+        y_start = 0.18
+        baits_list = [
+            ("Хробаки (x5)", state.shop_baits["Хробаки (x5)"]),
+            ("Кукурудза (x5)", state.shop_baits["Кукурудза (x5)"]),
+            ("Спеціальна наживка для хижої риби (x3)", state.shop_baits["Спеціальна наживка для хижої риби (x3)"])
+        ]
+
+        for bait_key, info in baits_list:
+            card = Entity(parent=content_area, model='quad', position=(0, y_start), scale=(0.86, 0.13), color=color.rgba32(24, 32, 48, 255), z=0)
+            in_stock = state.inventory.get(info['item'], 0)
+
+            Text(f"{bait_key}   •   В інвентарі: {in_stock} шт.", parent=content_area, position=(-0.41, y_start + 0.035), scale=1.05, color=color.azure, z=-0.01)
+            Text(f"{info['desc']}\nЦіна за пачку: {info['price']} грн (+{info['qty']} шт.)", parent=content_area, position=(-0.41, y_start - 0.005), scale=0.88, color=color.light_gray, z=-0.01)
+
+            def make_bait_click(b_key=bait_key, b_price=info['price']):
+                def on_click():
+                    if state.money < b_price:
+                        player.show_notification(f"Недостатньо грошей! Ціна: {b_price} грн", col=color.red)
+                        return
+                    ok, msg = state.buy_bait(b_key)
+                    player.update_hud()
+                    player.show_notification(msg, col=color.lime if ok else color.red)
+                    render_content()
+                return on_click
+
+            btn_col = color.green if state.money >= info['price'] else color.rgba32(110, 40, 40, 255)
+            Button(text=f"Купити ({info['price']} ₴)", parent=content_area, position=(0.33, y_start), scale=(0.17, 0.075), color=btn_col, on_click=make_bait_click(), z=-0.01)
+            y_start -= 0.15
+
+    def render_sell_tab():
+        card = Entity(parent=content_area, model='quad', position=(0, 0.08), scale=(0.86, 0.34), color=color.rgba32(24, 32, 48, 255), z=0)
+        Text("СКУПКА РИБИ ТА МОРЕПРОДУКТІВ", parent=content_area, position=(-0.40, 0.21), scale=1.1, color=color.gold, z=-0.01)
+        
+        sell_lines = []
+        total_qty = 0
+        total_val = 0
+        for fish, price in state.fish_prices.items():
+            qty = state.inventory.get(fish, 0)
+            total_qty += qty
+            total_val += qty * price
+            sell_lines.append(f"  • {fish}: {qty} шт. у кошику  (по {price} грн/шт  =  +{qty * price} грн)")
+        
+        sell_lines.append("──────────────────────────────────────────")
+        sell_lines.append(f"Загалом до продажу: {total_qty} риб на суму: {total_val} грн")
+
+        Text("\n".join(sell_lines), parent=content_area, position=(-0.40, 0.16), scale=0.92, color=color.white, z=-0.01)
+
+        def do_sell_all():
+            qty, earned = state.sell_all_fish()
+            player.update_hud()
+            state.save_to_file()
+            if qty > 0:
+                player.show_notification(f"Продано {qty} риб! Ви заробили +{earned} грн!", col=color.lime)
+            else:
+                player.show_notification("Кошик порожній! Спочатку зловіть рибу на озері.", col=color.yellow)
+            render_content()
+
+        btn_col = color.green if total_qty > 0 else color.dark_gray
+        Button(text=f"ПРОДАТИ ВСЮ РИБУ (+{total_val} ₴)", parent=content_area, position=(0, -0.16), scale=(0.54, 0.085), color=btn_col, on_click=do_sell_all, z=-0.01)
+
+    # Вкладки (Кнопки навігації зверху)
+    tab_rods_btn = Button(text="🎣 Вудки", parent=active_menu, position=(-0.28, 0.29), scale=(0.26, 0.055), color=color.azure, on_click=lambda: set_tab("RODS"), z=-0.02)
+    tab_baits_btn = Button(text="🪱 Наживка", parent=active_menu, position=(0.0, 0.29), scale=(0.26, 0.055), color=color.rgba32(35, 45, 65, 255), on_click=lambda: set_tab("BAITS"), z=-0.02)
+    tab_sell_btn = Button(text="💰 Продати рибу", parent=active_menu, position=(0.28, 0.29), scale=(0.26, 0.055), color=color.rgba32(35, 45, 65, 255), on_click=lambda: set_tab("SELL"), z=-0.02)
+
+    # Кнопка виходу внизу
+    Button(text="Вийти з магазину (ESC)", parent=active_menu, position=(0, -0.37), scale=(0.42, 0.065), color=color.dark_gray, on_click=close_ui, z=-0.02)
+
+    render_content()
 
 def open_quests_ui():
     global active_menu
     player.active_ui = "QUESTS"
     player.unlock_mouse()
 
-    active_menu = Entity(parent=camera.ui, model='quad', scale=(0.7, 0.75), color=color.rgba(20, 25, 40, 245))
-    Text("ЖУРНАЛ ЗАВДАНЬ", parent=active_menu, y=0.4, origin=(0, 0), scale=1.5, color=color.azure)
+    active_menu = Entity(parent=camera.ui, z=-10)
+    bg = Entity(parent=active_menu, model='quad', scale=(0.76, 0.78), color=color.rgba32(18, 24, 38, 245), z=0)
+    border = Entity(parent=active_menu, model='quad', scale=(0.766, 0.786), color=color.rgba32(50, 120, 220, 200), z=0.01)
 
-    y_pos = 0.25
+    Text("ЖУРНАЛ ЗАВДАНЬ", parent=active_menu, y=0.34, origin=(0, 0), scale=1.5, color=color.azure, z=-0.02)
+    Button(text="✕", parent=active_menu, position=(0.33, 0.34), scale=(0.045, 0.045), color=color.red, on_click=close_ui, z=-0.02)
+
+    y_pos = 0.22
     for q in state.quests:
-        status_text = "ГОТОВО (Забрати нагороду)" if (q["completed"] and not q["claimed"]) else ("ВИКОНАНО" if q["claimed"] else f"Прогрес: {q['current']}/{q['count']}")
-        Text(f"• {q['title']}: {q['desc']}\n  Статус: {status_text} | Нагорода: {q['reward_money']} грн, {q['reward_xp']} XP",
-             parent=active_menu, position=(-0.4, y_pos), scale=0.95, color=color.yellow if q["completed"] else color.white)
+        card = Entity(parent=active_menu, model='quad', position=(0, y_pos - 0.02), scale=(0.70, 0.12), color=color.rgba32(26, 34, 52, 255), z=-0.01)
+        status_text = "ГОТОВО! Натисніть Забрати" if (q["completed"] and not q["claimed"]) else ("ВИКОНАНО" if q["claimed"] else f"Прогрес: {q['current']}/{q['count']}")
+        stat_col = color.lime if q["completed"] else color.yellow
+        Text(f"• {q['title']}: {q['desc']}\n  Статус: {status_text}  |  Нагорода: +{q['reward_money']} грн, +{q['reward_xp']} XP",
+             parent=active_menu, position=(-0.33, y_pos + 0.01), scale=0.92, color=stat_col, z=-0.02)
         
         if q["completed"] and not q["claimed"]:
             qid = q["id"]
-            Button(text="Забрати", parent=active_menu, position=(0.35, y_pos - 0.02), scale=(0.2, 0.06), color=color.green, on_click=lambda q_id=qid: claim_reward(q_id))
-        y_pos -= 0.16
+            Button(text="Забрати", parent=active_menu, position=(0.26, y_pos - 0.02), scale=(0.14, 0.055), color=color.green, on_click=lambda q_id=qid: claim_reward(q_id), z=-0.02)
+        y_pos -= 0.15
 
-    Button(text="Закрити (ESC / Q)", parent=active_menu, y=-0.4, scale=(0.6, 0.09), color=color.dark_gray, on_click=close_ui)
+    Button(text="Закрити (ESC / Q)", parent=active_menu, position=(0, -0.32), scale=(0.42, 0.065), color=color.dark_gray, on_click=close_ui, z=-0.02)
 
 def claim_reward(quest_id):
     ok, msg = state.claim_quest(quest_id)
     player.update_hud()
+    state.save_to_file()
     player.show_notification(msg, col=color.lime if ok else color.red)
     close_ui()
     open_quests_ui()
@@ -805,12 +955,15 @@ def open_dialogue(npc_name, text):
     player.active_ui = "DIALOGUE"
     player.unlock_mouse()
 
-    active_menu = Entity(parent=camera.ui, model='quad', scale=(0.7, 0.4), color=color.rgba(15, 20, 30, 240))
-    Text(f"NPC: {npc_name}", parent=active_menu, y=0.3, origin=(0, 0), scale=1.4, color=color.azure)
-    Text(text, parent=active_menu, y=0.08, origin=(0, 0), scale=1.1, color=color.white)
+    active_menu = Entity(parent=camera.ui, z=-10)
+    bg = Entity(parent=active_menu, model='quad', scale=(0.74, 0.44), color=color.rgba32(18, 24, 36, 250), z=0)
+    border = Entity(parent=active_menu, model='quad', scale=(0.746, 0.446), color=color.rgba32(50, 130, 240, 200), z=0.01)
 
-    Button(text="До завдань (Q)", parent=active_menu, position=(-0.18, -0.25), scale=(0.3, 0.1), color=color.green, on_click=lambda: [close_ui(), open_quests_ui()])
-    Button(text="До побачення (ESC)", parent=active_menu, position=(0.18, -0.25), scale=(0.3, 0.1), color=color.dark_gray, on_click=close_ui)
+    Text(f"NPC: {npc_name}", parent=active_menu, y=0.15, origin=(0, 0), scale=1.4, color=color.azure, z=-0.02)
+    Text(text, parent=active_menu, y=0.03, origin=(0, 0), scale=1.05, color=color.white, z=-0.02)
+
+    Button(text="До завдань (Q)", parent=active_menu, position=(-0.18, -0.13), scale=(0.30, 0.07), color=color.green, on_click=lambda: [close_ui(), open_quests_ui()], z=-0.02)
+    Button(text="До побачення (ESC)", parent=active_menu, position=(0.18, -0.13), scale=(0.30, 0.07), color=color.dark_gray, on_click=close_ui, z=-0.02)
 
 
 # --- СТВОРЕННЯ ГРАВЦЯ (ПІСЛЯ побудови світу) ---

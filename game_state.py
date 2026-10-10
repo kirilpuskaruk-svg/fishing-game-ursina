@@ -14,11 +14,12 @@ class GameState:
             "Окунь": 0,
             "Щука": 0,
             "Сом": 0,
-            "Черв'яки": 10,
-            "Блешня": 0
+            "Хробаки": 10,
+            "Кукурудза": 0,
+            "Спеціальна наживка": 0
         }
-        self.current_rod = "Стара вудка"
-        self.owned_rods = ["Стара вудка"]
+        self.current_rod = "Початкова вудка"
+        self.owned_rods = ["Початкова вудка"]
         self.player_pos = None  # [x, y, z] безпечні координати
 
         # Завдання (Quests)
@@ -36,14 +37,51 @@ class GameState:
         }
 
         self.shop_rods = {
-            "Бамбукова вудка": {"price": 100, "luck_mult": 1.25, "level_req": 1},
-            "Професійний спінінг": {"price": 250, "luck_mult": 1.7, "level_req": 2},
-            "Титан Pro": {"price": 500, "luck_mult": 2.5, "level_req": 3}
+            "Початкова вудка": {
+                "price": 60,
+                "luck_mult": 1.15,
+                "level_req": 1,
+                "desc": "Легка дерев'яна вудка для новачків. Трохи підвищує шанс клювання (+15%)."
+            },
+            "Покращена вудка": {
+                "price": 140,
+                "luck_mult": 1.45,
+                "level_req": 1,
+                "desc": "Надійне вудилище з міцною жилкою. Чудово підходить для окуня (+45% удачі)."
+            },
+            "Професійна вудка": {
+                "price": 320,
+                "luck_mult": 1.95,
+                "level_req": 2,
+                "desc": "Карбоновий бланк з чутливим кінчиком. Дозволяє витягувати щуку (+95% удачі)."
+            },
+            "Рідкісна вудка для великої риби": {
+                "price": 650,
+                "luck_mult": 2.80,
+                "level_req": 3,
+                "desc": "Елітна титанова снасть для озерних гігантів та трофейних сомів (+180% удачі)."
+            }
         }
 
         self.shop_baits = {
-            "Черв'яки (x5)": {"price": 20, "item": "Черв'яки", "qty": 5},
-            "Блешня (x2)": {"price": 50, "item": "Блешня", "qty": 2}
+            "Хробаки (x5)": {
+                "price": 20,
+                "item": "Хробаки",
+                "qty": 5,
+                "desc": "Універсальна природна наживка для карася та окуня."
+            },
+            "Кукурудза (x5)": {
+                "price": 35,
+                "item": "Кукурудза",
+                "qty": 5,
+                "desc": "Солодка ароматна наживка, приваблює велику мирну рибу."
+            },
+            "Спеціальна наживка для хижої риби (x3)": {
+                "price": 75,
+                "item": "Спеціальна наживка",
+                "qty": 3,
+                "desc": "Спеціальна силіконова рибка з атрактантом для щуки та сома."
+            }
         }
 
     def add_xp(self, amount):
@@ -99,27 +137,30 @@ class GameState:
             return False, "Вудку не знайдено."
         if rod_name in self.owned_rods:
             self.current_rod = rod_name
-            return True, f"Ви екіпірували: {rod_name}"
+            self.save_to_file()
+            return True, f"Ви вже володієте цією вудкою. Вона екіпірована: {rod_name}!"
         if self.level < rod_info["level_req"]:
-            return False, f"Потрібен {rod_info['level_req']} рівень!"
+            return False, f"Потрібен {rod_info['level_req']} рівень гравця!"
         if self.money < rod_info["price"]:
-            return False, "Недостатньо грошей!"
+            return False, f"Недостатньо грошей! Ціна: {rod_info['price']} грн (у вас {self.money} грн)."
         
         self.money -= rod_info["price"]
         self.owned_rods.append(rod_name)
         self.current_rod = rod_name
-        return True, f"Придбано та екіпіровано: {rod_name}!"
+        self.save_to_file()
+        return True, f"Успішно придбано та екіпіровано: {rod_name}!"
 
     def buy_bait(self, bait_key):
         bait_info = self.shop_baits.get(bait_key)
         if not bait_info:
             return False, "Товар не знайдено."
         if self.money < bait_info["price"]:
-            return False, "Недостатньо грошей!"
+            return False, f"Недостатньо грошей! Ціна: {bait_info['price']} грн (у вас {self.money} грн)."
         self.money -= bait_info["price"]
         item = bait_info["item"]
         self.inventory[item] = self.inventory.get(item, 0) + bait_info["qty"]
-        return True, f"Куплено {bait_info['qty']} шт. {item}!"
+        self.save_to_file()
+        return True, f"Куплено {item} (+{bait_info['qty']} шт.)!"
 
     def save_to_file(self, player_pos=None, filepath=SAVE_FILE):
         if player_pos is not None:
@@ -150,9 +191,25 @@ class GameState:
             self.money = data.get("money", self.money)
             self.xp = data.get("xp", self.xp)
             self.level = data.get("level", self.level)
-            self.inventory = data.get("inventory", self.inventory)
+            loaded_inv = data.get("inventory", {})
+            for k, v in loaded_inv.items():
+                if k == "Черв'яки":
+                    self.inventory["Хробаки"] = self.inventory.get("Хробаки", 0) + v
+                elif k == "Блешня":
+                    self.inventory["Спеціальна наживка"] = self.inventory.get("Спеціальна наживка", 0) + v
+                else:
+                    self.inventory[k] = v
+
             self.current_rod = data.get("current_rod", self.current_rod)
+            if self.current_rod == "Стара вудка":
+                self.current_rod = "Початкова вудка"
+
             self.owned_rods = data.get("owned_rods", self.owned_rods)
+            if "Стара вудка" in self.owned_rods:
+                self.owned_rods = [r if r != "Стара вудка" else "Початкова вудка" for r in self.owned_rods]
+            if "Початкова вудка" not in self.owned_rods:
+                self.owned_rods.insert(0, "Початкова вудка")
+
             self.quests = data.get("quests", self.quests)
             raw_pos = data.get("player_pos")
             # Валідація координат: якщо y занадто низький, не використовуємо зіпсоване збереження
