@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low Fish — 3D Озерна Риболовля від Першої Особи (FPS)</title>
+    <meta name="description" content="Завантажуйте гру Low Fish для Windows 10/11. Риболовля від першої особи з відкритою локацією, 3D персонажами, магазином та завданнями.">
+    <link rel="icon" href="icon.png" type="image/png">
+    <style>
+        :root {
+            --primary: #0284c7;
+            --primary-hover: #0369a1;
+            --accent: #38bdf8;
+            --bg-dark: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-image: radial-gradient(circle at 50% 20%, #1e3a5f 0%, #0f172a 75%);
+            overflow-x: hidden;
+        }
+
+        header {
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--accent);
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+        }
+
+        .hero {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 80px 24px 60px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .badge {
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 6px 16px;
+            border-radius: 999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 20px;
+            background: linear-gradient(180deg, #ffffff 30%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            font-size: clamp(1.1rem, 2vw, 1.35rem);
+            color: var(--text-muted);
+            max-width: 650px;
+            line-height: 1.6;
+            margin-bottom: 40px;
+        }
+
+        .cta-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 50px;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 36px;
+            border-radius: 14px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 25px -5px rgba(2, 132, 199, 0.5);
+            transition: all 0.25s ease;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 30px -5px rgba(2, 132, 199, 0.65);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            text-decoration: none;
+            padding: 16px 28px;
+            border-radius: 14px;
+            font-size: 1.15rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.25s ease;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            width: 100%;
+            margin-top: 30px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            padding: 28px 24px;
+            text-align: left;
+            backdrop-filter: blur(8px);
+        }
+
+        .card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .controls-section {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            margin-top: 24px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 16px;
+            text-align: center;
+        }
+
+        .ctrl-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .ctrl-key {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        footer {
+            text-align: center;
+            padding: 32px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">
+            <img src="icon.png" alt="Low Fish Logo">
+            <span>Low Fish</span>
+        </div>
+        <div>
+            <a href="https://github.com/kirilpuskaruk-svg/fishing-game-ursina" target="_blank" style="color: var(--text-muted); text-decoration: none; font-weight: 500;">GitHub</a>
+        </div>
+    </header>
+
+    <main class="hero">
+        <div class="badge">Windows 10 / 11 • Standalone версія</div>
+        <h1>Low Fish</h1>
+        <p class="subtitle">
+            Атмосферний 3D-симулятор риболовлі з видом від першої особи. Досліджуйте берег озера, спілкуйтеся з NPC, покращуйте вудки та ловіть трофейну рибу!
+        </p>
+
+        <div class="cta-group">
+            <a href="https://github.com/kirilpuskaruk-svg/fishing-game-ursina/releases/download/v1.0.0/LowFish-Setup.exe" class="btn-download" id="downloadBtn">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Завантажити Установщик (.exe)
+            </a>
+            <a href="https://github.com/kirilpuskaruk-svg/fishing-game-ursina/releases/tag/v1.0.0" target="_blank" class="btn-secondary">
+                Усі релізи
+            </a>
+        </div>
+
+        <div class="features-grid">
+            <div class="card">
+                <h3>🎮 Повний FPS-режим</h3>
+                <p>Плавна камера 360°, реалістичний camera bobbing, колізії стін, дерев та надійна система заземлення.</p>
+            </div>
+            <div class="card">
+                <h3>🎣 Жива риболовля</h3>
+                <p>Поплавок на водній гладі, динамічне клювання, легка тряска камери та підсікання на клавішу E.</p>
+            </div>
+            <div class="card">
+                <h3>🏪 Магазин та Прокачка</h3>
+                <p>3D-продавець вудок, покупка блешні та черв'яків, продаж улову за гривні та нові рівні з XP.</p>
+            </div>
+            <div class="card">
+                <h3>💾 Збереження та Квести</h3>
+                <p>Журнал завдань із нагородами, діалоги з Дідом Василем та збереження прогресу у JSON-файлі.</p>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <div class="ctrl-item">
+                <span class="ctrl-key">W A S D</span>
+                <small>Пересування</small>
+            </div>
+            <div class="ctrl-item">
+                <span class="ctrl-key">Shift</span>
+                <small>Біг</small>
+            </div>
+            <div class="ctrl-item">
+                <span class="ctrl-key">E</span>
+                <small>Взаємодія / Рибалити</small>
+            </div>
+            <div class="ctrl-item">
+                <span class="ctrl-key">I / Q</span>
+                <small>Інвентар / Квести</small>
+            </div>
+            <div class="ctrl-item">
+                <span class="ctrl-key">ESC</span>
+                <small>Меню / Пауза</small>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>© 2026 Low Fish • Розроблено на Python & Ursina Engine • Безкоштовна гра для Windows</p>
+    </footer>
+
+</body>
+</html>
